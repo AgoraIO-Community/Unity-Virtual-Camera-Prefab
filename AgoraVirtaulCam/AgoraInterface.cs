@@ -1,9 +1,7 @@
 ﻿using UnityEngine;
-using UnityEngine.UI;
 
 using agora_gaming_rtc;
 using agora_utilities;
-using System;
 
 public class AgoraInterface : MonoBehaviour
 {
@@ -245,7 +243,7 @@ public class AgoraInterface : MonoBehaviour
         ChannelName = channel;
         UID = uid;
         // get token and join channel
-        StartCoroutine(HelperClass.FetchToken(url, channel, uid, this.JoinChannelWithTokenServerResponse));
+        StartCoroutine(TokenRequestHelper.FetchToken(url, channel, uid, this.JoinChannelWithTokenServerResponse));
         string fetchTokenMsg = string.Format("Fetching token for channel: {0}, with uid: {1}", ChannelName, UID);
         Logger.UpdateLog(fetchTokenMsg);
     }
@@ -262,7 +260,7 @@ public class AgoraInterface : MonoBehaviour
         mRtcEngine.RenewToken(newToken);
     }
 
-    // callbacks
+    #region ------  callbacks  -------
 
     // successfully joined channel
     public void OnJoinChannelSuccess (string channelName, uint uid, int elapsed) 
@@ -388,6 +386,7 @@ public class AgoraInterface : MonoBehaviour
 
     public void OnTokenPrivilegeWillExpire(string token)
     {
-        StartCoroutine(HelperClass.FetchToken(TokenServerUrl, ChannelName, UID, this.RenewToken));
+        StartCoroutine(TokenRequestHelper.FetchToken(TokenServerUrl, ChannelName, UID, this.RenewToken));
     }
+    #endregion
 }

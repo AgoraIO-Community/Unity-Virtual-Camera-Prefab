@@ -3,6 +3,8 @@ using agora_gaming_rtc;
 using UnityEngine;
 using UnityEngine.UI;
 using static agora_gaming_rtc.ExternalVideoFrame;
+using agora_utilities;
+
 using System.Collections.Generic;
 #if (UNITY_2018_3_OR_NEWER && UNITY_ANDROID)
 using UnityEngine.Android;
@@ -37,6 +39,7 @@ public class AgoraVirtualCamera : MonoBehaviour
     private GameObject RemoteScreenVideoRoot;
     [SerializeField]
     private Text LogText;
+
     [Header("UI Btn Config")]
     public GameObject JoinBtn;
     public GameObject LeaveBtn;
@@ -44,6 +47,7 @@ public class AgoraVirtualCamera : MonoBehaviour
     public GameObject QuitBtn;
     public Color ActiveMicColor = Color.green;
     public Color DisabledMicColor = Color.red;
+
     [Header("Video Encoder Config")]
     [SerializeField]
     private VideoDimensions dimensions = new VideoDimensions
@@ -59,18 +63,17 @@ public class AgoraVirtualCamera : MonoBehaviour
     private VIDEO_MIRROR_MODE_TYPE mirrorMode = VIDEO_MIRROR_MODE_TYPE.VIDEO_MIRROR_MODE_DISABLED;
     // use bitrate: 2260 for broadcast mode
 
-    Texture2D mTexture;
-    Rect mRect;
-
     // Pixel format
     public static TextureFormat ConvertFormat = TextureFormat.RGBA32;
     public static VIDEO_PIXEL_FORMAT PixelFormat = VIDEO_PIXEL_FORMAT.VIDEO_PIXEL_RGBA;
 
     private static int ShareCameraMode = 1;  // 0 = unsafe buffer pointer, 1 = renderer image
+
     // used for setting frame order
     int timeStampCount = 0; // monotonic timestamp counter
+
     // perspective camera buffer
-    Texture2D BufferTexture;
+    private Texture2D BufferTexture;
     // output log
     private Logger logger;
 
@@ -100,15 +103,10 @@ public class AgoraVirtualCamera : MonoBehaviour
 
 
         // if there isn't a join button defined, autojoin
-        if (JoinBtn == null && !JoinBtn.activeInHierarchy)
+        if (JoinBtn == null || !JoinBtn.activeInHierarchy)
         {
             JoinChannel();
         }
-
-
-#if UNITY_EDITOR
-        //  EditorApplication.quitting += OnApplicationQuit;
-#endif
     }
 
     // Update is called once per frame
@@ -179,8 +177,6 @@ public class AgoraVirtualCamera : MonoBehaviour
             client.CustomVideo = true;
             int width = Screen.width;
             int height = Screen.height;
-            mRect = new Rect(0, 0, width, height);
-            mTexture = new Texture2D((int)mRect.width, (int)mRect.height, TextureFormat.RGBA32, false);
         }
 
         AddCallbackEvents(); // add custom event handling
@@ -200,8 +196,11 @@ public class AgoraVirtualCamera : MonoBehaviour
 
     public void LeaveChannel()
     {
-        client.Leave();
-        mTexture = null;
+        if (client != null)
+        {
+            client.Leave();
+        }
+        DisableSharing();
         InChannel = false;
         // change mic buttn text and color - help user visualize  they left the channel
         if (MicBtn != null)
@@ -216,7 +215,9 @@ public class AgoraVirtualCamera : MonoBehaviour
             {
                 GameObject.Destroy(child.gameObject);
             }
-            StartCoroutine(UiUpdate(0.5f));
+            if (gameObject.activeInHierarchy) { 
+                StartCoroutine(UiUpdate(0.5f));
+            }
         }
     }
 
@@ -227,7 +228,7 @@ public class AgoraVirtualCamera : MonoBehaviour
 
     public void OnDisable()
     {
-        LeaveChannel();
+        // LeaveChannel();
     }
 
     public void ToggleMic()
@@ -262,7 +263,13 @@ public class AgoraVirtualCamera : MonoBehaviour
 
     public void ExitApp()
     {
+#if UNITY_EDITOR
+        // Application.Quit() does not work in the editor so
+        // UnityEditor.EditorApplication.isPlaying need to be set to false to end the game
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
         Application.Quit();
+#endif
     }
 
 
@@ -537,7 +544,6 @@ public class AgoraVirtualCamera : MonoBehaviour
             //apply raw data you are pulling from the rectangle you created earlier to the video frame
             externalVideoFrame.buffer = bytes;
 
-
             //Set the width of the video frame (in pixels)
             externalVideoFrame.stride = width;
             //Set the height of the video frame
@@ -557,8 +563,8 @@ public class AgoraVirtualCamera : MonoBehaviour
             int a = 0;
             rtc.PushVideoFrame(externalVideoFrame);
             if (timeStampCount % 100 == 0) Debug.Log(" pushVideoFrame(" + timeStampCount + ") size:" + bytes.Length + " => " + a);
-
         }
+
         yield return null;
         onFinish();
     }
