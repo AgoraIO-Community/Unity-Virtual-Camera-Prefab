@@ -89,18 +89,17 @@ public class AgoraVirtualCamera : MonoBehaviour
     // keep track of channel state
     bool InChannel = false;
 
+    #region --- Life Cycles ---
     void Awake()
     {
         // keep this alive across scenes
         //DontDestroyOnLoad(this.gameObject);
-
     }
 
     // Start is called before the first frame update
     void Start()
     {
         CheckAppId();// ensure an AppID is defined
-
 
         // if there isn't a join button defined, autojoin
         if (JoinBtn == null || !JoinBtn.activeInHierarchy)
@@ -114,6 +113,11 @@ public class AgoraVirtualCamera : MonoBehaviour
     {
         PermissionHelper.RequestMicrophontPermission();
         PermissionHelper.RequestCameraPermission();
+    }
+
+    void OnDisable()
+    {
+        LeaveChannel();
     }
 
     void OnApplicationPause(bool paused)
@@ -135,6 +139,9 @@ public class AgoraVirtualCamera : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region --- Agora Functions ---
     void ReloadAgoraEngine()
     {
         client = GetComponent<AgoraInterface>();
@@ -209,26 +216,18 @@ public class AgoraVirtualCamera : MonoBehaviour
             MicBtn.GetComponent<Image>().color = Color.white;
         }
         // remove the remote video planes
-        if (RemoteVideoRoot.transform.childCount > 0)
+        if (gameObject.activeInHierarchy)
         {
-            foreach (Transform child in RemoteVideoRoot.transform)
+            if (RemoteVideoRoot?.transform.childCount > 0)
             {
-                GameObject.Destroy(child.gameObject);
-            }
-            if (gameObject.activeInHierarchy) { 
+                foreach (Transform child in RemoteVideoRoot.transform)
+                {
+                    GameObject.Destroy(child.gameObject);
+                }
+
                 StartCoroutine(UiUpdate(0.5f));
             }
         }
-    }
-
-    public void OnDestroy()
-    {
-        LeaveChannel();
-    }
-
-    public void OnDisable()
-    {
-        // LeaveChannel();
     }
 
     public void ToggleMic()
@@ -261,6 +260,8 @@ public class AgoraVirtualCamera : MonoBehaviour
         }
     }
 
+
+    // Called by quit button
     public void ExitApp()
     {
 #if UNITY_EDITOR
@@ -272,15 +273,9 @@ public class AgoraVirtualCamera : MonoBehaviour
 #endif
     }
 
+    #endregion
 
-    //  helper functions
-
-    private void CheckAppId()
-    {
-        logger = new Logger(LogText);
-        logger.DebugAssert(AppID.Length > 10, "Please fill in your AppId");     //  Checks that AppID is set.
-    }
-
+    #region --- Callback handlers ---
     protected virtual void AddCallbackEvents()
     {
         IRtcEngine mRtcEngine = IRtcEngine.QueryEngine();
@@ -317,7 +312,6 @@ public class AgoraVirtualCamera : MonoBehaviour
         mRtcEngine.EnableDualStreamMode(true);
     }
 
-
     public void OnUserJoined(uint uid, int elapsed)
     {
         // add video streams from all users in the channel 
@@ -351,25 +345,24 @@ public class AgoraVirtualCamera : MonoBehaviour
         }
 
         // keep track of the remote uids
-        List<uint> remoteUIDsList = RemoteUIDs[remoteUIDtype];
-        if (remoteUIDsList != null)
+        logger.UpdateLog($"Make Remote Video UID type:{remoteUIDtype}");
+        if (RemoteUIDs.ContainsKey(remoteUIDtype))
         {
-            remoteUIDsList.Add(uid);
-        }
-        else
-        {
+            RemoteUIDs[remoteUIDtype].Add(uid);
+        } else { 
             RemoteUIDs.Add(remoteUIDtype, new List<uint> { uid });
         }
     }
+
     public void OnUserOffline(uint uid, USER_OFFLINE_REASON reason)
     {
-
         logger.UpdateLog("onUserOffline: update UI");
         // update the position of the remaining children
         StartCoroutine(UiUpdate(0.5f));
-
     }
+    #endregion
 
+    #region --- misc helper functions ---
     public void SetResolution(VideoDimensions newDimensions, int newBitrate)
     {
         dimensions = newDimensions;
@@ -386,7 +379,12 @@ public class AgoraVirtualCamera : MonoBehaviour
         client.SetVideoEncoderConfig(videoEncodeConfig);
     }
 
-    //misc
+    private void CheckAppId()
+    {
+        logger = new Logger(LogText);
+        logger.DebugAssert(AppID.Length > 10, "Please fill in your AppId");     //  Checks that AppID is set.
+    }
+
     private void MakeVideoView(uint uid, GameObject parentNode, Vector3 position, Quaternion rotation)
     {
         logger.UpdateLog(string.Format("Make Remote Video View for UID: {0}.", uid));
@@ -449,6 +447,21 @@ public class AgoraVirtualCamera : MonoBehaviour
         return videoSurface;
     }
 
+    IEnumerator UiUpdate(float time)
+    {
+        yield return new WaitForSeconds(time);
+
+        // update the UI
+        for (int i = 0; i < RemoteVideoRoot.transform.childCount; i++)
+        {
+            float xOffset = -1 * i * 3.69f; // calculate the new position
+            RemoteVideoRoot.transform.GetChild(i).localPosition = new Vector3(xOffset, 0, 0); // update the position 
+        }
+    }
+    #endregion
+
+
+    #region --- Virtual Camera video frame sharing ---
     void EnableVirtualCameraSharing()
     {
         RenderTexture renderTexture = VirtualCamRT;
@@ -472,18 +485,6 @@ public class AgoraVirtualCamera : MonoBehaviour
             ShareRenderTexture();
         }
         yield return null;
-    }
-
-    IEnumerator UiUpdate(float time)
-    {
-        yield return new WaitForSeconds(time);
-
-        // update the UI
-        for (int i = 0; i < RemoteVideoRoot.transform.childCount; i++)
-        {
-            float xOffset = -1 * i * 3.69f; // calculate the new position
-            RemoteVideoRoot.transform.GetChild(i).localPosition = new Vector3(xOffset, 0, 0); // update the position 
-        }
     }
 
     private void ShareRenderTexture()
@@ -568,4 +569,5 @@ public class AgoraVirtualCamera : MonoBehaviour
         yield return null;
         onFinish();
     }
+    #endregion
 }
