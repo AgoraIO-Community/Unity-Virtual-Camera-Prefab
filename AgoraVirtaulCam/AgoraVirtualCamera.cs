@@ -32,11 +32,11 @@ public class AgoraVirtualCamera : MonoBehaviour
     [SerializeField]
     private Camera VirtualCam;
     [SerializeField]
-    private RenderTexture VirtualCamRT;
-    [SerializeField]
     private GameObject RemoteVideoRoot;
     [SerializeField]
     private GameObject RemoteScreenVideoRoot;
+    /*[SerializeField]
+    private int ScreenShareUID;*/
     [SerializeField]
     private Text LogText;
 
@@ -328,11 +328,11 @@ public class AgoraVirtualCamera : MonoBehaviour
         {
             // offset the new video plane based on the parent's number of children.    
             float xOffset = RemoteVideoRoot.transform.childCount * -3.69f;
-            MakeVideoView(uid, RemoteVideoRoot, new Vector3(xOffset, 0, 0), Quaternion.Euler(270, 180, 0));
+            MakeVideoView(uid, RemoteVideoRoot, new Vector3(xOffset, 0, 0), Quaternion.Euler(270, 180, 0), new Vector3(1.0f, 1.0f, 0.5625f));
             remoteUIDtype = "admin";
         } else if (uid == 49024 && RemoteScreenVideoRoot != null)
         {
-            MakeVideoView(uid, RemoteScreenVideoRoot, new Vector3(0, 0, 0), Quaternion.Euler(270, 180, 0));
+            MakeVideoView(uid, RemoteScreenVideoRoot, new Vector3(0, 0, 0), Quaternion.Euler(270, 0, 0), new Vector3(-1.777f,-1.0f, -1.0f));
             remoteUIDtype = "screen";
         }
         else
@@ -385,7 +385,7 @@ public class AgoraVirtualCamera : MonoBehaviour
         logger.DebugAssert(AppID.Length > 10, "Please fill in your AppId");     //  Checks that AppID is set.
     }
 
-    private void MakeVideoView(uint uid, GameObject parentNode, Vector3 position, Quaternion rotation)
+    private void MakeVideoView(uint uid, GameObject parentNode, Vector3 position, Quaternion rotation, Vector3 scale)
     {
         logger.UpdateLog(string.Format("Make Remote Video View for UID: {0}.", uid));
         GameObject go = GameObject.Find(uid.ToString());
@@ -395,7 +395,7 @@ public class AgoraVirtualCamera : MonoBehaviour
         }
 
         // create a GameObject and assign to this new user
-        VideoSurface videoSurface = makePlaneSurface(uid.ToString(), parentNode, position, rotation, false);
+        VideoSurface videoSurface = makePlaneSurface(uid.ToString(), parentNode, position, rotation, scale);
         if (videoSurface != null)
         {
             // configure videoSurface
@@ -407,7 +407,7 @@ public class AgoraVirtualCamera : MonoBehaviour
     }
 
     // VIDEO TYPE 1: 3D Object
-    public VideoSurface makePlaneSurface(string goName, GameObject parentNode, Vector3 position, Quaternion rotation, bool verticalLayout)
+    public VideoSurface makePlaneSurface(string goName, GameObject parentNode, Vector3 position, Quaternion rotation, Vector3 scale)
     {
         GameObject go = GameObject.CreatePrimitive(PrimitiveType.Plane);
 
@@ -416,16 +416,8 @@ public class AgoraVirtualCamera : MonoBehaviour
             return null;
         }
         go.name = goName;
-
-        if (verticalLayout)
-        {
-            go.transform.localScale = new Vector3(0.25f, 0.5f, 0.5f); // scale the video (1:2)
-        }
-        else
-        {
-            go.transform.localScale = new Vector3(0.333f, 0.25f, 0.25f); // scale the video (4:3)
-            // go.transform.localScale = new Vector3(0.5f, 0.5f, 0.25f); // scale the video (2:1)
-        }
+        
+        go.transform.localScale = scale; // scale the video (4:3)
 
 
         if (parentNode != null)
@@ -464,11 +456,14 @@ public class AgoraVirtualCamera : MonoBehaviour
     #region --- Virtual Camera video frame sharing ---
     void EnableVirtualCameraSharing()
     {
-        RenderTexture renderTexture = VirtualCamRT;
+        RenderTexture renderTexture = VirtualCam.targetTexture;
         if (renderTexture != null)
         {
             BufferTexture = new Texture2D(renderTexture.width, renderTexture.height, ConvertFormat, false);
             StartCoroutine(CoShareRenderData()); // use co-routine to push frames into the Agora stream
+        } else
+        {
+            logger.UpdateLog("Error: No Render Texture Found. Check Virtual Camera.");
         }
     }
 
