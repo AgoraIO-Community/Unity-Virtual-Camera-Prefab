@@ -57,6 +57,9 @@ public class AgoraInterface : MonoBehaviour
         // enable log (debug)
         // -- other configs: LOG_FILTER.DEBUG | LOG_FILTER.INFO | LOG_FILTER.WARNING | LOG_FILTER.ERROR | LOG_FILTER.CRITICAL
         mRtcEngine.SetLogFilter(LOG_FILTER.DEBUG);
+
+        // set callbacks (optional)
+        EnableCallBacks();
     }
 
     // unload agora engine
@@ -94,7 +97,7 @@ public class AgoraInterface : MonoBehaviour
 
     public void SetVideoEncoderConfig(VideoEncoderConfiguration config)
     {
-        this.videoEncodeConfig = config;    
+        this.videoEncodeConfig = config;
     }
 
     public void SetChannelProfile(CHANNEL_PROFILE channelProfile)
@@ -117,14 +120,10 @@ public class AgoraInterface : MonoBehaviour
         // set channel profile & role
         mRtcEngine.SetChannelProfile(ChannelProfile);
         // set the client role for broadcast channel
-        if(ChannelProfile == CHANNEL_PROFILE.CHANNEL_PROFILE_LIVE_BROADCASTING)
+        if (ChannelProfile == CHANNEL_PROFILE.CHANNEL_PROFILE_LIVE_BROADCASTING)
         {
             mRtcEngine.SetClientRole(BroadcastClientRole);
         }
-        mRtcEngine.EnableWebSdkInteroperability(true); // enable to use with Web Clients
-
-        // set callbacks (optional)
-        EnableCallBacks();
 
         // enable audio and video
         mRtcEngine.EnableAudio(); // disable to avoid feedback loop while testing
@@ -157,11 +156,6 @@ public class AgoraInterface : MonoBehaviour
             // join channel
             mRtcEngine.JoinChannel(channel, null, uid);
         }
-
-
-        // Optional: if a data stream is required, here is a good place to create it
-        //int streamID = mRtcEngine.CreateDataStream(true, true);
-        //logger.UpdateLog("initializeEngine done, data stream id = " + streamID);
     }
 
     public void Leave()
@@ -174,9 +168,10 @@ public class AgoraInterface : MonoBehaviour
 
     public void MuteLocalAudioStream(bool mute)
     {
-        if (mRtcEngine == null)
-            return;
-        mRtcEngine.MuteLocalAudioStream(mute);    
+        if (mRtcEngine != null)
+        {
+            mRtcEngine.MuteLocalAudioStream(mute);
+        }
     }
 
     private void EnableCallBacks()
@@ -201,10 +196,6 @@ public class AgoraInterface : MonoBehaviour
         mRtcEngine.OnConnectionStateChanged += OnConnectionStateChanged;
         mRtcEngine.OnConnectionInterrupted += OnConnectionInterrupted;
         mRtcEngine.OnConnectionLost += OnConnectionLost;
-        if (TokenServerUrl != null)
-        {
-            mRtcEngine.OnTokenPrivilegeWillExpire += OnTokenPrivilegeWillExpire;
-        }
     }
 
     public void EnableVideo(bool pauseVideo)
@@ -243,46 +234,34 @@ public class AgoraInterface : MonoBehaviour
         ChannelName = channel;
         UID = uid;
         // get token and join channel
-        StartCoroutine(TokenRequestHelper.FetchToken(url, channel, uid, this.JoinChannelWithTokenServerResponse));
         string fetchTokenMsg = string.Format("Fetching token for channel: {0}, with uid: {1}", ChannelName, UID);
         Logger.UpdateLog(fetchTokenMsg);
     }
 
-    private void JoinChannelWithTokenServerResponse(string newToken)
-    {
-        Join(ChannelName, newToken, UID);
-        string joiningChannelMsg = string.Format("Token success, joining channel: {0}, with uid: {1}", ChannelName, UID);
-        Logger.UpdateLog(joiningChannelMsg);
-    }
-
-    private void RenewToken (string newToken)
-    {
-        mRtcEngine.RenewToken(newToken);
-    }
 
     #region ------  callbacks  -------
 
     // successfully joined channel
-    public void OnJoinChannelSuccess (string channelName, uint uid, int elapsed) 
+    public void OnJoinChannelSuccess(string channelName, uint uid, int elapsed)
     {
         string joinSuccessMessage = string.Format("joinChannel callback uid: {0}, channel: {1}, version: {2}", uid, channelName, GetSdkVersion());
         Logger.UpdateLog(joinSuccessMessage);
     }
 
-    public void OnLeaveChannel (RtcStats stats)
+    public void OnLeaveChannel(RtcStats stats)
     {
         string leaveChannelMessage = string.Format("onLeaveChannel callback duration {0}, tx: {1}, rx: {2}, tx kbps: {3}, rx kbps: {4}", stats.duration, stats.txBytes, stats.rxBytes, stats.txKBitRate, stats.rxKBitRate);
         Logger.UpdateLog(leaveChannelMessage);
     }
 
-    public void OnUserJoined (uint uid, int elapsed)
+    public void OnUserJoined(uint uid, int elapsed)
     {
         string userJoinedMessage = string.Format("onUserJoined callback uid {0} {1}", uid, elapsed);
         Logger.UpdateLog(userJoinedMessage);
     }
 
 
-    public void OnUserOffline (uint uid, USER_OFFLINE_REASON reason)
+    public void OnUserOffline(uint uid, USER_OFFLINE_REASON reason)
     {
         string userOfflineMessage = string.Format("onUserOffline callback uid {0} {1}", uid, reason);
         Logger.UpdateLog(userOfflineMessage);
@@ -297,7 +276,7 @@ public class AgoraInterface : MonoBehaviour
         }
     }
 
-    public void OnVolumeIndication (AudioVolumeInfo[] speakers, int speakerNumber, int totalVolume)
+    public void OnVolumeIndication(AudioVolumeInfo[] speakers, int speakerNumber, int totalVolume)
     {
         if (speakerNumber == 0 || speakers == null)
         {
@@ -311,33 +290,33 @@ public class AgoraInterface : MonoBehaviour
         }
     }
 
-    public void OnUserMutedAudio (uint uid, bool muted)
+    public void OnUserMutedAudio(uint uid, bool muted)
     {
         string userMutedMessage = string.Format("OnUserMutedAudio callback uid {0} {1}", uid, muted);
         Logger.UpdateLog(userMutedMessage);
     }
 
-    public void OnUserMuteVideo (uint uid, bool muted)
+    public void OnUserMuteVideo(uint uid, bool muted)
     {
         string userMutedMessage = string.Format("OnUserMuteVideo callback uid {0} {1}", uid, muted);
         Logger.UpdateLog(userMutedMessage);
     }
 
-    public void OnWarning (int warn, string msg)
+    public void OnWarning(int warn, string msg)
     {
         string description = IRtcEngine.GetErrorDescription(warn);
         string warningMessage = string.Format("onWarning callback {0} {1} {2}", warn, msg, description);
         Logger.UpdateLog(warningMessage);
     }
 
-    public void OnError (int error, string msg)
+    public void OnError(int error, string msg)
     {
         string description = IRtcEngine.GetErrorDescription(error);
         string errorMessage = string.Format("onError callback {0} {1} {2}", error, msg, description);
         Logger.UpdateLog(errorMessage);
     }
 
-    public void OnRtcStats (RtcStats stats)
+    public void OnRtcStats(RtcStats stats)
     {
         if (RtcStatsEnabled)
         {
@@ -353,7 +332,7 @@ public class AgoraInterface : MonoBehaviour
         }
     }
 
-    public void OnAudioRouteChanged (AUDIO_ROUTE route)
+    public void OnAudioRouteChanged(AUDIO_ROUTE route)
     {
         string routeMessage = string.Format("onAudioRouteChanged {0}", route);
         Logger.UpdateLog(routeMessage);
@@ -372,21 +351,17 @@ public class AgoraInterface : MonoBehaviour
         Logger.UpdateLog(connectionStateMessage);
     }
 
-    public void OnConnectionInterrupted ()
+    public void OnConnectionInterrupted()
     {
         string interruptedMessage = string.Format("OnConnectionInterrupted");
         Logger.UpdateLog(interruptedMessage);
     }
 
-    public void OnConnectionLost ()
+    public void OnConnectionLost()
     {
         string lostMessage = string.Format("OnConnectionLost");
         Logger.UpdateLog(lostMessage);
     }
 
-    public void OnTokenPrivilegeWillExpire(string token)
-    {
-        StartCoroutine(TokenRequestHelper.FetchToken(TokenServerUrl, ChannelName, UID, this.RenewToken));
-    }
     #endregion
 }
