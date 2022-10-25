@@ -25,9 +25,11 @@ public class AgoraVirtualCamera : MonoBehaviour
     [SerializeField]
     private string TempToken = "";
     [SerializeField]
-    private string TokenServerURL = "";
+    bool UseTokenClient;
     [SerializeField]
     private string ChannelName = "";
+    [SerializeField]
+    private CLIENT_ROLE_TYPE CLIENT_ROLE = CLIENT_ROLE_TYPE.CLIENT_ROLE_BROADCASTER;
     [Header("Env Config")]
     [SerializeField]
     private Camera VirtualCam;
@@ -186,9 +188,18 @@ public class AgoraVirtualCamera : MonoBehaviour
 
         AddCallbackEvents(); // add custom event handling
 
-        if (TokenServerURL != "")
+        if (UseTokenClient)
         {
-            client.JoinWithTokenServer(ChannelName, UID, TokenServerURL);
+            Debug.LogWarning("Using token server...");
+            TokenClient.Instance.SetClient(
+                CLIENT_ROLE == CLIENT_ROLE_TYPE.CLIENT_ROLE_BROADCASTER ? ClientType.publisher : ClientType.subscriber);
+            TokenClient.Instance.SetRtcEngineInstance(client.getEngine());
+            TokenClient.Instance.GetRtcToken(ChannelName, 0, (token) =>
+            {
+                TempToken = token;
+                client.Join(ChannelName, token, UID);
+                Debug.LogWarning($"token server...{token}");
+            });
         }
         else
         {
