@@ -394,7 +394,7 @@ public class AgoraVirtualCamera : MonoBehaviour
     private void CheckAppId()
     {
         logger = new Logger(LogText);
-        logger.DebugAssert(AppID.Length > 10, "Please fill in your AppId");     //  Checks that AppID is set.
+        logger.DebugAssert(AppID.Length > 10, "<color=red>Please fill in your AppId</color>");     //  Checks that AppID is set.
     }
 
     private void MakeVideoView(uint uid, GameObject parentNode, Vector3 position, Quaternion rotation, Vector3 scale)
