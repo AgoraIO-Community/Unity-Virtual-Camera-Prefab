@@ -25,9 +25,11 @@ public class AgoraVirtualCamera : MonoBehaviour
     [SerializeField]
     private string TempToken = "";
     [SerializeField]
-    private string TokenServerURL = "";
+    bool UseTokenClient;
     [SerializeField]
     private string ChannelName = "";
+    [SerializeField]
+    private CLIENT_ROLE_TYPE CLIENT_ROLE = CLIENT_ROLE_TYPE.CLIENT_ROLE_BROADCASTER;
     [Header("Env Config")]
     [SerializeField]
     private Camera VirtualCam;
@@ -150,7 +152,6 @@ public class AgoraVirtualCamera : MonoBehaviour
             client.Leave();
             client.UnloadEngine();
             Destroy(client);
-            client = null;
         }
         client = gameObject.AddComponent<AgoraInterface>();
         client.SetLogger(logger);
@@ -172,7 +173,6 @@ public class AgoraVirtualCamera : MonoBehaviour
         // clean up and create a new one
         ReloadAgoraEngine();
 
-
         string appidMSG = string.Format("Initializing client with appid: ${0}", AppID);
         logger.UpdateLog(appidMSG);
         client.LoadEngine(AppID); // load engine
@@ -188,9 +188,18 @@ public class AgoraVirtualCamera : MonoBehaviour
 
         AddCallbackEvents(); // add custom event handling
 
-        if (TokenServerURL != "")
+        if (UseTokenClient)
         {
-            client.JoinWithTokenServer(ChannelName, UID, TokenServerURL);
+            Debug.LogWarning("Using token server...");
+            TokenClient.Instance.SetClient(
+                CLIENT_ROLE == CLIENT_ROLE_TYPE.CLIENT_ROLE_BROADCASTER ? ClientType.publisher : ClientType.subscriber);
+            TokenClient.Instance.SetRtcEngineInstance(client.getEngine());
+            TokenClient.Instance.GetRtcToken(ChannelName, 0, (token) =>
+            {
+                TempToken = token;
+                client.Join(ChannelName, token, UID);
+                Debug.LogWarning($"token server...{token}");
+            });
         }
         else
         {
@@ -330,9 +339,10 @@ public class AgoraVirtualCamera : MonoBehaviour
             float xOffset = RemoteVideoRoot.transform.childCount * -3.69f;
             MakeVideoView(uid, RemoteVideoRoot, new Vector3(xOffset, 0, 0), Quaternion.Euler(270, 180, 0), new Vector3(1.0f, 1.0f, 0.5625f));
             remoteUIDtype = "admin";
-        } else if (uid == 49024 && RemoteScreenVideoRoot != null)
+        }
+        else if (uid == 49024 && RemoteScreenVideoRoot != null)
         {
-            MakeVideoView(uid, RemoteScreenVideoRoot, new Vector3(0, 0, 0), Quaternion.Euler(270, 0, 0), new Vector3(-1.777f,-1.0f, -1.0f));
+            MakeVideoView(uid, RemoteScreenVideoRoot, new Vector3(0, 0, 0), Quaternion.Euler(270, 0, 0), new Vector3(-1.777f, -1.0f, -1.0f));
             remoteUIDtype = "screen";
         }
         else
@@ -349,7 +359,9 @@ public class AgoraVirtualCamera : MonoBehaviour
         if (RemoteUIDs.ContainsKey(remoteUIDtype))
         {
             RemoteUIDs[remoteUIDtype].Add(uid);
-        } else { 
+        }
+        else
+        {
             RemoteUIDs.Add(remoteUIDtype, new List<uint> { uid });
         }
     }
@@ -382,7 +394,7 @@ public class AgoraVirtualCamera : MonoBehaviour
     private void CheckAppId()
     {
         logger = new Logger(LogText);
-        logger.DebugAssert(AppID.Length > 10, "Please fill in your AppId");     //  Checks that AppID is set.
+        logger.DebugAssert(AppID.Length > 10, "<color=red>Please fill in your AppId</color>");     //  Checks that AppID is set.
     }
 
     private void MakeVideoView(uint uid, GameObject parentNode, Vector3 position, Quaternion rotation, Vector3 scale)
@@ -402,7 +414,6 @@ public class AgoraVirtualCamera : MonoBehaviour
             videoSurface.SetForUser(uid);
             videoSurface.SetEnable(true);
             videoSurface.SetVideoSurfaceType(AgoraVideoSurfaceType.Renderer);
-            videoSurface.SetGameFps(30);
         }
     }
 
@@ -416,7 +427,7 @@ public class AgoraVirtualCamera : MonoBehaviour
             return null;
         }
         go.name = goName;
-        
+
         go.transform.localScale = scale; // scale the video (4:3)
 
 
@@ -439,9 +450,9 @@ public class AgoraVirtualCamera : MonoBehaviour
         return videoSurface;
     }
 
-    IEnumerator UiUpdate(float time)
+    IEnumerator UiUpdate(float delay)
     {
-        yield return new WaitForSeconds(time);
+        yield return new WaitForSeconds(delay);
 
         // update the UI
         for (int i = 0; i < RemoteVideoRoot.transform.childCount; i++)
@@ -461,7 +472,8 @@ public class AgoraVirtualCamera : MonoBehaviour
         {
             BufferTexture = new Texture2D(renderTexture.width, renderTexture.height, ConvertFormat, false);
             StartCoroutine(CoShareRenderData()); // use co-routine to push frames into the Agora stream
-        } else
+        }
+        else
         {
             logger.UpdateLog("Error: No Render Texture Found. Check Virtual Camera.");
         }
@@ -494,12 +506,6 @@ public class AgoraVirtualCamera : MonoBehaviour
         BufferTexture.ReadPixels(rect, 0, 0);
         BufferTexture.Apply();
         byte[] bytes = BufferTexture.GetRawTextureData();
-        // sends the Raw data contained in bytes
-        //monoProxy.StartCoroutine(PushFrame(bytes, (int)rect.width, (int)rect.height,
-        //() =>
-        //{
-        //    bytes = null;
-        //}));
 
         StartCoroutine(PushFrame(bytes, (int)rect.width, (int)rect.height,
          () =>
@@ -512,7 +518,7 @@ public class AgoraVirtualCamera : MonoBehaviour
 
 
     /// <summary>
-    /// Push frame to the remote client.  This is the same code that does ScreenSharing.
+    /// Push frame to the remote client.  
     /// </summary>
     /// <param name="bytes">raw video image data</param>
     /// <param name="width"></param>
@@ -534,7 +540,7 @@ public class AgoraVirtualCamera : MonoBehaviour
             //Create a new external video frame
             ExternalVideoFrame externalVideoFrame = new ExternalVideoFrame();
             //Set the buffer type of the video frame
-            externalVideoFrame.type = ExternalVideoFrame.VIDEO_BUFFER_TYPE.VIDEO_BUFFER_RAW_DATA;
+            externalVideoFrame.type = VIDEO_BUFFER_TYPE.VIDEO_BUFFER_RAW_DATA;
             // Set the video pixel format
             externalVideoFrame.format = PixelFormat; // VIDEO_PIXEL_RGBA
             //apply raw data you are pulling from the rectangle you created earlier to the video frame
